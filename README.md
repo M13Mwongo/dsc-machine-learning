@@ -55,7 +55,7 @@ The baseline model - a logistic regression, was created, followed by a decision 
 | Logistic Regression   | .857571  | .52941    | .27481 | .18557 |
 | Decision Tree         | .89355   | .64130    | .62434 | .60825 |
 | Random Forest         | .93103   | .93220    | .70513 | .56701 |
-| Hyperparameter Tuning | .94003   |           |        |        |
+| Hyperparameter Tuning | .94003   | .98305    | .74359 | .59794 |
 
 ## Evaluation
 
