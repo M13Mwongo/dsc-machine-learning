@@ -1,0 +1,163 @@
+"use strict";
+
+// hides thumbs after click
+function hideFeedbackButtons() {
+  const feedbackSection = document.querySelector('.fis-feedback');
+  feedbackSection.classList.add("feedback-hidden")
+}
+
+function handleThumbs(data, feedback) { // sends thumbs up/down data in GET request to backend, which currently sends GET request to Google sheet to keep record
+  let url = `https://obscure-shore-06374.herokuapp.com/thumbs/${feedback}/${data.courseId}/${encodeURIComponent(data.lessonId)}/${encodeURIComponent(data.lessonType)}/${encodeURIComponent(data.course)}/${data.userId}`;
+  fetch(url);
+  hideFeedbackButtons();
+}
+
+function buildThumbsSection() { // construct DOM content for thumb buttons
+  const thumbs = document.createElement('section');
+  thumbs.className = "fis-feedback";
+  const feedbackPrompt = document.createElement('h5'); // thumbs prompt
+  feedbackPrompt.textContent = "How do you feel about this lesson?";
+  const thumbsUp = document.createElement('img');
+  thumbsUp.id = "thumbsUp";
+  thumbsUp.title = "Thumbs up!";
+  thumbsUp.alt = "Thumbs up!";
+  const thumbsDown = document.createElement('img');
+  thumbsDown.id = "thumbsDown";
+  thumbsDown.title = "Thumbs down!";
+  thumbsDown.alt = "Thumbs down!";
+  thumbs.appendChild(feedbackPrompt);
+  thumbs.appendChild(thumbsUp);
+  thumbs.appendChild(thumbsDown);
+  return thumbs;
+}
+
+
+function buildSurveySection(data) { // construct DOM content for survey link
+  const survey = document.createElement('section');
+  const surveyPrompt = document.createElement('h5');
+  surveyPrompt.textContent = "Have specific feedback?";
+  survey.appendChild(surveyPrompt);
+  const surveyLink = document.createElement('a');
+  const issues = document.querySelector(".fis-git-link[href*='/issues']");
+  if (issues) {
+    issues.href += "/choose"
+    surveyLink.href = issues.href
+  } else {
+    surveyLink.href = `https://flatironschoolforms.formstack.com/forms/canvas_feedback?CourseID=${data.courseId}&LessonID=${data.lessonId}&LessonType=${data.lessonType}&CanvasUserID=${data.userId}&Course=${data.course}`;
+  }
+  surveyLink.target = "_blank";
+  surveyLink.className = "survey-link";
+  surveyLink.textContent = "Tell us here!";
+  survey.appendChild(surveyLink);
+  return survey;
+}
+
+
+function buildSupportSection() { // construct DOM content for AAQ section
+  var zendeskWidgetScript = document.createElement("script");
+  zendeskWidgetScript.src = "https://static.zdassets.com/ekr/snippet.js?key=a4d38c24-ff31-47c9-a4c6-07dd05f077ef";
+  zendeskWidgetScript.id = "ze-snippet"
+
+  return zendeskWidgetScript;
+}
+
+
+function adjustHeader(lessonType, courseId, lessonId) { // updates Fork link with dyanmic href based on course and lesson
+  let forkLink, dataElement, repo, org, prework
+  forkLink = document.querySelector('#fork-link');
+  dataElement = document.querySelector('#git-data-element');
+  if (dataElement && dataElement.dataset && dataElement.dataset['repo']) {
+    repo = dataElement.dataset['repo'];
+  }
+  if (dataElement && dataElement.dataset && dataElement.dataset['org']) {
+    org = dataElement.dataset['org'];
+  }
+  if (dataElement && dataElement.dataset && dataElement.dataset['prework']) {
+    prework = dataElement.dataset['prework'] === "true" ? true : false;
+  }
+  if (forkLink) {
+    forkLink.href = `https://github.com/${org}/${repo}/fork`;
+  }
+
+  if (!forkLink || courseId == 3296 || prework) return;
+
+
+  if (lessonType === "assignments") { // builds href if lesson is an assignment, otherwise, hides fork link if present
+    forkLink.href = `https://portal.flatironschool.com/fork/${org}/${repo}?canvas_course_id=${courseId}&canvas_assignment_id=${lessonId}`;
+  } else {
+    forkLink.classList.add('hidden')
+  }
+}
+
+window.onload = () => {
+  // user/course info from Canvas's ENV
+  const env = window.ENV
+  var term = "None"
+  if (!env) return
+
+  const userId = env.current_user.id;
+  const userName = env.current_user.display_name;
+  if (!!env.CONTEXTS && !!env.CONTEXTS.courses) {
+    term = env.CONTEXTS.courses[Object.keys(env.CONTEXTS.courses)[0]].term
+  }
+  const course = env.BLUEPRINT_COURSES_DATA ? env.BLUEPRINT_COURSES_DATA.course.name : env.COURSE_TITLE ? env.COURSE_TITLE : "None";
+  const courseId = env.COURSE_ID;
+
+  if (!courseId) return;
+  // if (course.includes("Homeroom")) return;
+  // if (!(env.ASSIGNMENT_ID || env.WIKI_PAGE || env.speed_grader_url)) return; // stop work unless the current page is in a course and is a lesson or assignment
+
+  const href = window.location.href;
+  const lessonId = href.match(/(pages|assignments|quizzes|discussion_topics)\/[a-zA-Z-0-9]+/g) ? href.match(/(pages|assignments|quizzes|discussion_topics)\/[a-zA-Z-0-9]+/g)[0].replace(/(pages|assignments|quizzes|discussion_topics)\//g, "") : "None";
+  const lessonType = href.match(/courses\/[0-9]+\/[a-zA-Z-_]+/g) ? href.match(/courses\/[0-9]+\/[a-zA-Z-_]+/g)[0].replace(/courses\/[0-9]+\//g, "") : "None";
+  const data = {
+    userId,
+    courseId,
+    course,
+    lessonId,
+    lessonType,
+    userName
+  };
+  const header = document.querySelector('.fis-header');
+
+  if (!!header) {
+    header.style.visibility = 'visible'
+    adjustHeader(lessonType, courseId, lessonId);
+  }
+
+  const footer = document.createElement('footer');
+  footer.className = "fis-footer"; // create and append global footer sections
+
+  const thumbs = buildThumbsSection();
+  const survey = buildSurveySection(data);
+  footer.appendChild(thumbs);
+  footer.appendChild(survey);
+
+  // create AAQ link IF course is supported
+  // regex is brittle but currently no other way to designate which courses are supported by AAQ
+  // const exceptions = ["5098"]
+  // let match = !!course.match(/(Software Engineering|SE).+Online/g) || !!course.match(/Online.+(Software Engineering|SE)/g) || !!course.match(/(ONL.*SE|SE.*ONL)/g) || !!exceptions.includes(env.COURSE_ID); // if AAQ applies, build support section and add to footer
+  //
+  // if (match) {
+  //   const zendeskWidget = buildSupportSection();
+  //   document.getElementsByTagName("body")[0].appendChild(zendeskWidget);
+  // }
+
+  document.querySelector('#content').appendChild(footer);
+
+  // set up events for thumbs
+  document.querySelector('#thumbsUp').addEventListener('click', event => handleThumbs(data, "Good"));
+  document.querySelector('#thumbsDown').addEventListener('click', event => handleThumbs(data, "Bad"));
+
+  // DS Illumidesk specific - reduces default height of illumidesk page
+  let illumideskWrapper = document.querySelector('.tool_content_wrapper');
+
+  if (!!illumideskWrapper) {
+    if (illumideskWrapper.children[0].action.includes('illumidesk')) {
+      illumideskWrapper.classList.add('no-height')
+      let iframe = document.querySelector('#tool_content');
+      if (!!iframe) iframe.classList.add('i-height')
+    }
+  }
+
+};
